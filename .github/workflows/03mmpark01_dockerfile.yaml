@@ -25,7 +25,7 @@ jobs:
             cache-to: type=gha,mode=max
 
       - name: run docker container
-        run:
+        run: |
             docker run -d --name mmpark01 -p 8080:8080 massai_mara:v1
             sleep 20
 
