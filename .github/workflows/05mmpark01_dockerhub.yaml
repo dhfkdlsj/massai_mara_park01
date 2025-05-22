@@ -42,3 +42,8 @@ jobs:
       - name: run automated test    
         run: |
           curl http://localhost:8080/animal || exit 1
+
+      - name: stop docker container
+        run: |
+            docker stop mmpark01
+            docker rm mmpark01
