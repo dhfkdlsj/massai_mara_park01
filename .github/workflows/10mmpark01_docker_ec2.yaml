@@ -25,6 +25,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/ard64
           push: false
           load: true
           tags: ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
