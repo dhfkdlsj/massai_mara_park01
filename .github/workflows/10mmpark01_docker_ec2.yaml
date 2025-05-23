@@ -12,7 +12,9 @@ env:
 
 jobs:
   build_image:
-    runs-on: macOS-latest
+    name: Build Docker Image
+    runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -32,9 +34,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Check built image
-        run: docker images
-
       - name: Save Docker image
         run: docker save ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} -o image.tar
 
@@ -45,16 +44,15 @@ jobs:
           path: image.tar
 
   hub_push:
+    name: Push Docker Image to DockerHub
     needs: build_image
-    runs-on: macOS-latest
+    runs-on: ubuntu-22.04
+
     steps:
       - name: Download image artifact
         uses: actions/download-artifact@v4
         with:
           name: docker-image
-
-      - name: Check downloaded image
-        run: ls -al
 
       - name: Load Docker image
         run: docker load < image.tar
@@ -65,25 +63,26 @@ jobs:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: docker operations
+      - name: Push image to DockerHub
         run: |
           docker push ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           docker tag ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          docker search ${{ env.IMAGE_NAME}}:latest
 
       - name: Logout from DockerHub
         if: always()
         run: docker logout
 
   upload_compose:
+    name: Upload Compose File to EC2
     needs: hub_push
-    runs-on: macOS-latest
+    runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: copy file to EC2
+      - name: Copy Compose to EC2
         uses: appleboy/scp-action@master
         with:
           host: ${{ env.HOSTNAME }}
@@ -91,14 +90,15 @@ jobs:
           key: ${{ secrets.EC2_PRIVATEKEY }}
           port: 22
           source: "./compose-multijobs.yaml"
-          target: "/home/${{env.USERNAME}}"
+          target: "/home/${{ env.USERNAME }}"
 
   run_test:
+    name: Run and Test on EC2
     needs: upload_compose
-    runs-on: macOS-latest
-    steps:
+    runs-on: ubuntu-22.04
 
-      - name: deploy on EC2
+    steps:
+      - name: Deploy on EC2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ env.HOSTNAME }}
@@ -108,6 +108,5 @@ jobs:
           script: |
             docker compose -f ./compose-multijobs.yaml up -d
             sleep 30
-
             docker compose ps
-            docker compose logs    
+            docker compose logs
