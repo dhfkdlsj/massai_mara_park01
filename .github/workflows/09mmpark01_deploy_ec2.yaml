@@ -4,12 +4,12 @@ on:
   workflow_dispatch
 
 env:
-    HOSTNAME: 52.91.3.174
-    USER_NAME: ubuntu 
+  HOSTNAME: 52.91.3.174
+  USER_NAME: ubuntu
 
 jobs:
   build_jar:
-    name: build JAR
+    name: Build JAR
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Code
@@ -20,9 +20,6 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-    
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -33,21 +30,23 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew clean build
 
-      - name: List JAR files
-        run: ls -al ./build/libs
+      - name: Rename JAR for consistency
+        run: |
+          mkdir artifact
+          cp ./build/libs/*SNAPSHOT.jar ./artifact/application.jar
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: application.jar
-          path: ./build/libs/*SNAPSHOT.jar
-  
+          path: ./artifact/application.jar
+
   deploy_ec2:
     needs: build_jar
-    name: JAR upload to EC2
+    name: Upload JAR to EC2
     runs-on: ubuntu-22.04
     steps:
-      - name: download JAR artifact
+      - name: Download JAR artifact
         uses: actions/download-artifact@v4
         with:
           name: application.jar
@@ -65,13 +64,12 @@ jobs:
       - name: Upload JAR via SCP
         run: |
           scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-          -i ~/.ssh/ec2_key -P 22 *.SNAPSHOT.jar \
-          ${{ env.USER_NAME }}@${{ env.HOSTNAME }}:~/
+          -i ~/.ssh/ec2_key -P 22 application.jar \
+          ${{ env.USER_NAME }}@${{ env.HOSTNAME }}:~/application.jar
 
       - name: Cleanup private key
         if: always()
-        run: |
-          rm -f ~/.ssh/ec2_key
+        run: rm -f ~/.ssh/ec2_key
 
   run_test_ec2:
     needs: deploy_ec2
@@ -86,21 +84,16 @@ jobs:
       - name: Make private key file
         run: |
           echo "${{ secrets.EC2_PRIVATEKEY }}" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key          
+          chmod 600 ~/.ssh/ec2_key
 
-      - name: Test SSH connect to EC2
+      - name: Run Spring Boot App on EC2
         run: |
-          echo "SSH connection test started..."
-
-          ssh -vvv -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
           -i ~/.ssh/ec2_key -p 22 \
-          ${{ env.USER_NAME }}@${{ env.HOSTNAME }} << 'EOF'
-            java -jar ./massai_mara_park-0.0.1-SNAPSHOT.jar &
-          EOF
-
-          echo "SSH connection test completed."
+          ${{ env.USER_NAME }}@${{ env.HOSTNAME }} '
+            nohup java -jar ~/application.jar > log.txt 2>&1 &
+          '
 
       - name: Cleanup private key
         if: always()
-        run: |
-          rm -f ~/.ssh/ec2_key
+        run: rm -f ~/.ssh/ec2_key
