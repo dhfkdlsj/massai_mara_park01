@@ -91,12 +91,7 @@ jobs:
           port: 22
           source: "./compose-multijobs.yaml"
           target: "/home/${{env.USERNAME}}"
-
-  run_test:
-    needs: hub_push
-    runs-on: ubuntu-22.04
-    steps:
-
+      
       - name: deploy on EC2
         uses: appleboy/ssh-action@master
         with:
