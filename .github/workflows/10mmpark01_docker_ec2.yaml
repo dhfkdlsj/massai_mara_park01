@@ -111,8 +111,10 @@ jobs:
           key: ${{ secrets.EC2_PRIVATEKEY }}
           port: 22
           script: |
+            docker compose -f ./compose-multijobs.yaml down
+            docker image rm -f kangheejun/massai_mara:latest
             docker compose -f ./compose-multijobs.yaml up -d
-            sleep 30
+            sleep 15
 
             docker compose -f ./compose-multijobs.yaml ps
             docker compose -f ./compose-multijobs.yaml logs
